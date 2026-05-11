@@ -1,5 +1,4 @@
-import { useState } from "react"
-
+import { useState, useEffect } from "react"
 import { Button } from "./components/ui/button"
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "./components/ui/input"
@@ -13,6 +12,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { BASE_URL } from "./config/api"
+
+type Prediction = {
+  id: string
+  image: string
+  label: string
+  confidence: number
+}
 
 type PredictResponse = {
   status: string
@@ -23,18 +30,12 @@ type PredictResponse = {
   }
 }
 
-type Prediction = {
-  id: string
-  image: string
-  label: string
-  confidence: number
-}[]
-
 export function App() {
   const [file, setFile] = useState<File | null>(null)
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<PredictResponse | null>(null)
   const [error, setError] = useState("")
+  const [predictions, setPredictions] = useState<Prediction[]>([])
 
   const handlePredict = async () => {
     if (!file) {
@@ -48,9 +49,9 @@ export function App() {
       setResult(null)
 
       const formData = new FormData()
-      formData.append("image", file)
+      formData.append("file", file)
 
-      const response = await fetch("http://localhost:3000/predict", {
+      const response = await fetch(`${BASE_URL}/predict`, {
         method: "POST",
         body: formData,
       })
@@ -62,6 +63,7 @@ export function App() {
       const data: PredictResponse = await response.json()
 
       setResult(data)
+      fetchPredictionHistory()
     } catch (err) {
       console.error(err)
       setError("Something went wrong.")
@@ -70,15 +72,25 @@ export function App() {
     }
   }
 
-  const predictions: Prediction = [
-    {
-      id: "PRD-001",
-      image:
-        "https://storage.googleapis.com/kagglesdsdata/datasets/3655010/6347168/final/test/Vascular%20lesion/ISIC_0024706.jpg?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Credential=databundle-worker-v2%40kaggle-161607.iam.gserviceaccount.com%2F20260511%2Fauto%2Fstorage%2Fgoog4_request&X-Goog-Date=20260511T074145Z&X-Goog-Expires=345600&X-Goog-SignedHeaders=host&X-Goog-Signature=0dd09e9f55e1ace510db790c3b9c854199c46ed5f3575de78616ca77e0167104205697960792916727ef4183898ecffbfacdff3bea619147cf09c16c9fe5467d379eba5e494b630d61ad7ca563751f5c6d207077677943997011c48ecd5d1bcc48e115bdda4a672feb98e1e99ff138f875500c16b4bfeeffd018c399a6bad598932daf1e00315cb035c346c87c74c7fdf0b7cbf7b2ff1680408465a1003446539217300ebba3364ff115f9497931dee1a1a5323cb25e75244a5560e9550092ed4d1ee68dc597c1ce29cb7b42993d482b4ff36311e5c410fda89bb9d572e1bae57c725de0f7025ef610e2f6a01da5d2d3b93cbcb0dae650bd8c695cb058e1d24d",
-      label: "Vasular Lesion",
-      confidence: 97.99,
-    },
-  ]
+  const fetchPredictionHistory = async () => {
+    try {
+      const response = await fetch(`${BASE_URL}/predict-history`)
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch history")
+      }
+
+      const data = await response.json()
+
+      setPredictions(data.data)
+    } catch (error) {
+      console.error(error)
+    }
+  }
+
+  useEffect(() => {
+    fetchPredictionHistory()
+  }, [])
 
   return (
     <div className="flex justify-center border">
@@ -95,10 +107,10 @@ export function App() {
           </div>
 
           <Field>
-            <FieldLabel htmlFor="image">Image</FieldLabel>
+            <FieldLabel htmlFor="file">Image File</FieldLabel>
 
             <Input
-              id="image"
+              id="file"
               type="file"
               accept="image/*"
               onChange={(e) => {
@@ -160,11 +172,15 @@ export function App() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {predictions.map((item) => (
+                {predictions?.map((item) => (
                   <TableRow key={item.id}>
                     <TableCell className="font-medium">{item.id}</TableCell>
                     <TableCell className="font-medium">
-                      <img src={item.image} alt="image" className="h-16 w-16" />
+                      <img
+                        src={`${BASE_URL}/image/${item.image}`}
+                        alt="image"
+                        className="h-16 w-16"
+                      />
                     </TableCell>
                     <TableCell>{item.label}</TableCell>
                     <TableCell>{item.confidence}</TableCell>
