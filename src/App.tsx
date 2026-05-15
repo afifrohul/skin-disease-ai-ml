@@ -1,9 +1,25 @@
-import { useState } from "react"
-
+import { useState, useEffect } from "react"
 import { Button } from "./components/ui/button"
-import { Field, FieldDescription, FieldLabel } from "./components/ui/field"
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Input } from "./components/ui/input"
 import { Separator } from "./components/ui/separator"
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { BASE_URL } from "./config/api"
+
+type Prediction = {
+  id: string
+  image: string
+  label: string
+  confidence: number
+}
 
 type PredictResponse = {
   status: string
@@ -19,6 +35,7 @@ export function App() {
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<PredictResponse | null>(null)
   const [error, setError] = useState("")
+  const [predictions, setPredictions] = useState<Prediction[]>([])
 
   const handlePredict = async () => {
     if (!file) {
@@ -32,9 +49,9 @@ export function App() {
       setResult(null)
 
       const formData = new FormData()
-      formData.append("image", file)
+      formData.append("file", file)
 
-      const response = await fetch("http://localhost:3000/predict", {
+      const response = await fetch(`${BASE_URL}/predict`, {
         method: "POST",
         body: formData,
       })
@@ -46,6 +63,7 @@ export function App() {
       const data: PredictResponse = await response.json()
 
       setResult(data)
+      fetchPredictionHistory()
     } catch (err) {
       console.error(err)
       setError("Something went wrong.")
@@ -53,6 +71,26 @@ export function App() {
       setLoading(false)
     }
   }
+
+  const fetchPredictionHistory = async () => {
+    try {
+      const response = await fetch(`${BASE_URL}/predict-history`)
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch history")
+      }
+
+      const data = await response.json()
+
+      setPredictions(data.data)
+    } catch (error) {
+      console.error(error)
+    }
+  }
+
+  useEffect(() => {
+    fetchPredictionHistory()
+  }, [])
 
   return (
     <div className="flex justify-center border">
@@ -69,10 +107,10 @@ export function App() {
           </div>
 
           <Field>
-            <FieldLabel htmlFor="image">Image</FieldLabel>
+            <FieldLabel htmlFor="file">Image File</FieldLabel>
 
             <Input
-              id="image"
+              id="file"
               type="file"
               accept="image/*"
               onChange={(e) => {
@@ -116,6 +154,41 @@ export function App() {
               </div>
             </div>
           )}
+        </div>
+        <div className="mt-8 flex flex-col gap-2">
+          <div className="w-fit">
+            <h1 className="text-sm font-medium">Prediction History</h1>
+            <Separator />
+          </div>
+          <div>
+            <Table>
+              <TableCaption>A list of your recent predictions.</TableCaption>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-25">ID</TableHead>
+                  <TableHead>Image</TableHead>
+                  <TableHead>Label</TableHead>
+                  <TableHead>Confidence</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {predictions?.map((item) => (
+                  <TableRow key={item.id}>
+                    <TableCell className="font-medium">{item.id}</TableCell>
+                    <TableCell className="font-medium">
+                      <img
+                        src={`${BASE_URL}/image/${item.image}`}
+                        alt="image"
+                        className="h-16 w-16"
+                      />
+                    </TableCell>
+                    <TableCell>{item.label}</TableCell>
+                    <TableCell>{item.confidence}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </div>
       </div>
     </div>
